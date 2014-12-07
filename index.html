@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- <meta name='viewport' content='width=device-width, initial-scale=1'> -->
+    <title>Socket.IO chat</title>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <script type='text/javascript' id='lt_ws' src='http://localhost:34281/socket.io/lighttable/ws.js'></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font: 13px Helvetica, Arial; padding-bottom: 40px; padding-left: 60px; padding-right: 60px;
+        /*background-image: url('/bootstrap/img/glyphicons-halflings-white.png'); background-repeat: repeat;*/
+        margin-top:10px; margin-bottom:10px; margin-left:10px; margin-right:10px;
+      }
+      /*form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }*/
+      form input { border: 0; padding: 10px; margin-right: .5%; }
+      form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages li { padding: 5px 10px; }
+      #messages li:nth-child(odd) { background: #eee; }
+      #comsect { float: right; padding: 1em; color: purple; font-size: large; position: absolute;}
+      #date {float: right; color: red;}
+      .main-chat {
+        height:400px; border-style: solid; border-color: #DDDDDD; border-width: 1px;
+        margin-bottom: 10px; overflow: auto;
+      }
+      .online { height: 400px; overflow: auto; }
+
+      .navbar .nav > li > a{
+        margin-left: -20px;
+        font-size: 20px;
+        font-weight: 200;
+        padding: 10px 10px 11px;
+        color: #999999;
+      }
+    </style>
+  </head>
+  <body>
+  <div class="navbar navbar-inverse">
+      <div class="navbar-inner">
+        <div class="container">
+          <ul class="nav">
+            <li><a class="brand" href="#">Chat</a></li>
+          </ul>
+        </div>
+      </div>
+  </div>
+  <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="col-md-8">
+          <div class="nav nav-tabs">
+            <li class="active"><a href="#GC">General Chat</a></li>
+          </div>
+          <div class="tab-content">
+            <div class="tab-pane active" id="GC">
+              <div class="main-chat" id="mc">
+                <ul id="messages"></ul>
+              </div>
+            </div>
+          </div>
+          <i id="comsect"></i>
+          <div class="well form-horizontal">
+            <form action="">
+            <div class="col-md-10" >
+                <input class="input-xlarge form-control" type="text" id="message" autocomplete="off" onkeydown="doKeypress(this);" size=16/>
+            </div>
+              <div class="col-md-2" >
+                <input class="btn btn-primary" type="submit" name="submit" value="Send">
+              </div>
+             <hr>
+
+            </form>
+          </div>
+          <a target="_blank" href="http://www.umingo.de/doku.php?id=misc:chat_smileys">Ascii codes</a>
+          <a target="_blank" href="https://trendimpulse.wordpress.com/tag/multiple-lines-ascii-art/">Other art</a>
+        </div>
+        <div class="col-md-4">
+          <ul class="nav nav-tabs">
+            <li class="active"><a href="#online">Online</a></li>
+          </ul>
+          <div class="tab-content">
+            <div class="online">
+              <ul id="online" class="nav nav-pills nav-stacked">
+        <li class="active"><a id="cuser" href="#GC"></a></li>
+        <!-- <li><a href="#lounge"><i class="icon-user"></i>Foo</a></li> -->
+
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    var focus = false;
+      $(window).on("blur focus", function(e) {
+        var prevType = $(this).data("prevType");
+
+        if (prevType != e.type) {   //  reduce double fire issues
+            switch (e.type) {
+                case "blur":
+                    focus = false;
+                    break;
+                case "focus":
+                    focus = true;
+                    break;
+            }
+        }
+
+        $(this).data("prevType", e.type);
+      })
+
+    </script>
+    <script>
+      var name = "Anonymous";
+      var socket = io({transports: ["websocket"] });
+      var Serveraddress = socket.io.uri;
+      var inp,prevInput,lasttouch;
+      var justconnected = true;
+      var audio = new Audio('notification.mp3');
+      var username = prompt("Please enter your name", "Anonymous");
+
+
+      if (username != null || username != "") {
+          name = username;
+      }else {
+        name = "Anonymous";
+      }
+      socket.on('connect', function () {
+        socket.emit('entered', name);// send username
+        $('#comsect').text("Your connected to " + Serveraddress);
+        setTimeout(function(){
+          justconnected = false;
+        }, 1000*2)
+        $('#cuser').text(name);
+
+      });
+
+        $('form').submit(function() {
+          var message = $('#message').val().trim();
+
+          if (message != "") {
+            socket.emit('chat message', message);
+            $('#message').val('');
+          }
+          return false;
+        });
+        socket.on('entered', function(data) {
+          // console.log(data.user);
+          // var foundname = $('*:contains("'data.user'")');
+          if (data.user != name) {
+            if(data.justconnect)
+              $('#messages').append($('<li>').text("User: " + data.user + " just entered"));
+            // if (!foundname)
+              $('#online').append($('<li>').html($('<a href="#user" data-user="' + data.user + '">').text(data.user)));
+          }
+        });
+        socket.on('broadcast', function(msg) {
+          $('#messages').append($('<li>').text(msg));
+        });
+        socket.on('chat message', function(uname, data) {
+          if (name != uname && !focus) {
+            audio.play();
+          }
+          $('#messages').append($('<li>').text(uname + ": " + data.msg).append($('<p id="date">').text(data.date)));
+           // console.log(name);
+          $('#mc').animate({"scrollTop": $('#messages')[0].scrollHeight}, "slow");
+        });
+        socket.on('typing', function(data) {
+          settyping(data);
+        });
+
+        socket.on('userdisconnect', function(_user) {
+          var msg = "User " + _user + " just disconnected";
+          $('#messages').append($('<li>').text(msg));
+          $("li").find("[data-user='" + _user + "']").remove();
+          $('#u li:empty').remove();
+          console.log(msg);
+        });
+
+     socket.on('disconnect', function(msg) {
+          console.log("server disconnect");
+          // socket.destroy();
+          // socket = null;
+        });
+    function doKeypress(input) {
+      inp = input.value.trim();
+
+      if (inp != prevInput) {
+        socket.emit('typing',{name: name});
+        // console.log(inp);
+      }
+      prevInput = inp;
+    }
+
+    function settyping(data){
+      if (data.name != name){
+        $('#comsect').text('User: ' + data.name + ' Is Typing');
+        lasttouch = true;
+      }
+    }
+    var curinterva = 0;
+    var staticinterval = 5;
+    //setting user typing
+    setInterval(function(){
+          if (lasttouch == false && justconnected == false) {
+            $('#comsect').text('');
+          }
+          lasttouch = false;
+          curinterva++;
+          if(socket.connected && curinterva == staticinterval){
+          // socket.emit('online', name);
+          // console.log("online");
+          curinterva = 0;
+          }
+        }, 1000*1);
+    </script>
+  </body>
+</html>
